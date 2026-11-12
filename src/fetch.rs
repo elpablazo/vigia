@@ -17,6 +17,8 @@ pub struct Page {
     /// The site answered with an anti-bot challenge instead of the page.
     pub challenge: bool,
     pub body: String,
+    #[serde(default)]
+    pub content_type: String,
 }
 
 pub fn client() -> reqwest::Client {
@@ -56,7 +58,7 @@ fn is_private(ip: IpAddr) -> bool {
 /// Refuse URLs that point inside the network this process runs in (other containers, the LAN).
 // ponytail: resolves once here and again inside reqwest, so DNS rebinding can still slip through;
 // pin the resolved address with a custom resolver if this ever faces untrusted users.
-fn public_host(url: &reqwest::Url) -> Result<(), String> {
+pub fn public_host(url: &reqwest::Url) -> Result<(), String> {
     if !matches!(url.scheme(), "http" | "https") {
         return Err("Sólo se pueden vigilar direcciones http:// o https://".into());
     }
@@ -104,6 +106,7 @@ pub async fn direct(http: &reqwest::Client, url: &str, user_agent: &str) -> Resu
 
     let status = resp.status().as_u16();
     let challenge = resp.headers().get("cf-mitigated").is_some_and(|v| v.as_bytes().eq_ignore_ascii_case(b"challenge"));
+    let content_type = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or_default().to_ascii_lowercase();
     let mut body = Vec::new();
     while let Some(chunk) = resp.chunk().await.map_err(|e| format!("Se cortó la descarga: {e}"))? {
         body.extend_from_slice(&chunk);
@@ -116,40 +119,30 @@ pub async fn direct(http: &reqwest::Client, url: &str, user_agent: &str) -> Resu
         status,
         challenge,
         body: String::from_utf8_lossy(&body).into_owned(),
+        content_type,
     })
 }
 
 // ---------------------------------------------------------------- relay
 
-/// A stateless fetcher on another network (see relay/worker.js) that the server calls over HTTPS.
-pub struct Relay {
-    pub url: String,
-    pub token: String,
-}
-
-impl Relay {
-    pub fn from_env() -> Option<Relay> {
-        let get = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
-        Some(Relay {
-            url: get("VIGIA_RELAY_URL")?,
-            token: get("VIGIA_RELAY_TOKEN")?,
-        })
+/// Asks the relay (see relay/worker.js) to fetch `url` from its network. Requests are signed with the
+/// server's relay key; the relay only holds the public half, so there is no shared secret to leak.
+pub async fn via_relay(http: &reqwest::Client, relay_url: &str, key: &p256::SecretKey, url: &str, user_agent: &str) -> Result<Page, String> {
+    let time = crate::now().to_string();
+    let signature = crate::webpush::sign(key, format!("{time}\n{url}\n{user_agent}").as_bytes());
+    let r = http
+        .post(relay_url)
+        .timeout(Duration::from_secs(40))
+        .header("x-vigia-time", time)
+        .header("x-vigia-signature", signature)
+        .json(&serde_json::json!({ "url": url, "user_agent": user_agent }))
+        .send()
+        .await
+        .map_err(|e| format!("No se pudo llamar al relevo: {e}"))?;
+    if !r.status().is_success() {
+        return Err(format!("El relevo respondió HTTP {}", r.status().as_u16()));
     }
-
-    pub async fn fetch(&self, http: &reqwest::Client, url: &str, user_agent: &str) -> Result<Page, String> {
-        let r = http
-            .post(&self.url)
-            .timeout(Duration::from_secs(40))
-            .bearer_auth(&self.token)
-            .json(&serde_json::json!({ "url": url, "user_agent": user_agent }))
-            .send()
-            .await
-            .map_err(|e| format!("No se pudo llamar al relevo: {e}"))?;
-        if !r.status().is_success() {
-            return Err(format!("El relevo respondió HTTP {}", r.status().as_u16()));
-        }
-        r.json().await.map_err(|e| format!("Respuesta inesperada del relevo: {e}"))
-    }
+    r.json().await.map_err(|e| format!("Respuesta inesperada del relevo: {e}"))
 }
 
 // ---------------------------------------------------------------- agents

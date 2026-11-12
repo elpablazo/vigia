@@ -18,6 +18,24 @@ pub struct Extracted {
 const MAX_TEXT: usize = 200_000;
 const MAX_DEPTH: usize = 400;
 
+/// Dispatches on what the server said it sent: JSON is compared pretty-printed (one value per
+/// line, so diffs point at the field that changed); PDFs are refused instead of read as garbage.
+pub fn extract_page(body: &str, content_type: &str, selector: Option<&str>) -> Result<Extracted, String> {
+    if content_type.contains("pdf") || body.starts_with("%PDF-") {
+        return Err("Es un PDF; Vigía todavía no lee PDF.".into());
+    }
+    if content_type.contains("json")
+        && let Ok(v) = serde_json::from_str::<Value>(body)
+    {
+        let text = serde_json::to_string_pretty(&v).unwrap_or_default();
+        return Ok(Extracted {
+            text: text.chars().take(MAX_TEXT).collect(),
+            ..Default::default()
+        });
+    }
+    extract(body, selector)
+}
+
 pub fn extract(html: &str, selector: Option<&str>) -> Result<Extracted, String> {
     let doc = Html::parse_document(html);
     let mut out = Extracted::default();
@@ -100,6 +118,12 @@ pub fn extract(html: &str, selector: Option<&str>) -> Result<Extracted, String> 
             cut -= 1;
         }
         out.text.truncate(cut);
+    }
+    // A selector pointed at the price is the user's word: it beats whatever the page's metadata says.
+    if selector.is_some_and(|s| !s.trim().is_empty())
+        && let Some(p) = price_in_text(&out.text)
+    {
+        out.price = Some(p);
     }
     Ok(out)
 }
@@ -204,6 +228,24 @@ fn loose_value<'a>(s: &'a str, key: &str) -> Option<&'a str> {
     Some(value.trim()).filter(|v| !v.is_empty())
 }
 
+/// The first amount written like a price ("$1,299.00", "MXN 499", or text that is only a number).
+fn price_in_text(text: &str) -> Option<f64> {
+    let t = text.trim();
+    if t.len() < 20 && t.chars().any(|c| c.is_ascii_digit()) && t.chars().all(|c| c.is_ascii_digit() || " .,$".contains(c)) {
+        return parse_price_str(t);
+    }
+    for marker in ["$", "MXN", "USD", "€"] {
+        if let Some(i) = t.find(marker) {
+            let rest = t[i + marker.len()..].trim_start();
+            let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.' || c == ',')).unwrap_or(rest.len());
+            if let Some(p) = parse_price_str(&rest[..end]) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 fn availability(s: &str) -> Option<bool> {
     let s = s.to_ascii_lowercase().replace([' ', '_', '-'], "");
     if ["outofstock", "soldout", "discontinued"].iter().any(|k| s.contains(k)) {
@@ -292,6 +334,25 @@ mod tests {
             (Some(25799.0), Some("MXN"), Some(true), Some("PC Blanca"))
         );
         assert_eq!(loose_value("\"price\": 12.5, \"x\":1", "price"), Some("12.5"));
+    }
+
+    #[test]
+    fn price_from_selector() {
+        let html = r#"<script type="application/ld+json">{"@type":"Product","offers":{"price":"999"}}</script>
+            <div class="old">Antes $1,699.00</div><div class="now"><span>$</span>1,444<sup>.15</sup> MXN</div>"#;
+        assert_eq!(extract(html, None).unwrap().price, Some(999.0));
+        assert_eq!(extract(html, Some(".now")).unwrap().price, Some(1444.15));
+        assert_eq!(extract(html, Some(".old")).unwrap().price, Some(1699.0));
+        assert_eq!(price_in_text("Sin precio"), None);
+        assert_eq!(price_in_text(" 12,50 "), Some(12.5));
+    }
+
+    #[test]
+    fn json_and_pdf() {
+        let e = extract_page(r#"{"stars":10,"name":"x"}"#, "application/json; charset=utf-8", None).unwrap();
+        assert_eq!(e.text, "{\n  \"name\": \"x\",\n  \"stars\": 10\n}");
+        assert!(extract_page("%PDF-1.4 …", "application/octet-stream", None).is_err());
+        assert_eq!(extract_page("<p>hola</p>", "text/html", None).unwrap().text, "hola");
     }
 
     #[test]

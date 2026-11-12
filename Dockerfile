@@ -5,6 +5,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo 'fn main(){}' > src/main.rs && cargo build --release --locked && rm -rf src
 COPY src src
+COPY relay relay
 RUN touch src/main.rs && cargo build --release --locked && mkdir /data
 
 # Static binary on an empty image: no shell, no libc, nothing else to patch. Runs unprivileged.

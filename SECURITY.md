@@ -10,6 +10,7 @@ Sólo se da soporte a la última versión publicada.
 
 Vigía es de un solo usuario: quien tiene el token puede todo. Lo que sí defiende:
 
+- **Avisos push.** Cifrados de punta a punta con las llaves de cada dispositivo (RFC 8291) y firmados con la llave VAPID del servidor (RFC 8292); el servicio push del navegador sólo ve bytes cifrados.
 - **Acceso.** Toda la API y `/mcp` exigen el token (`Authorization: Bearer` o la cookie de sesión `HttpOnly; SameSite=Strict`, con `Secure` detrás de HTTPS). La comparación es de tiempo constante. Sin `VIGIA_TOKEN` se genera uno aleatorio por ejecución; nunca arranca abierto.
 - **SSRF.** Sólo `http`/`https`. Se rechazan destinos que resuelven a redes privadas, loopback, link-local o CGNAT, también en cada redirección. `VIGIA_ALLOW_PRIVATE=1` lo desactiva.
 - **Contenido remoto.** Las páginas vigiladas son datos no confiables: el tamaño de descarga, la profundidad del árbol HTML y el texto guardado tienen tope, y la interfaz escapa todo lo que muestra. La página se sirve con CSP, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`.
@@ -19,7 +20,7 @@ Vigía es de un solo usuario: quien tiene el token puede todo. Lo que sí defien
 ## Límites conocidos
 
 - La defensa contra SSRF resuelve el nombre antes de conectar; un DNS que cambie de respuesta entre ambas consultas (rebinding) podría evadirla. Importa si expones Vigía a usuarios que no son tú.
-- El relevo es un punto público en internet que pide cualquier URL http(s) a quien presente su token. Trata `RELAY_TOKEN` como una contraseña y rótalo si se filtra.
+- El relevo sólo atiende peticiones firmadas con la llave privada del servidor (que vive en su base de datos) y caducas a los 2 minutos; quien robe el respaldo de la base puede usar tu relevo. Si eso pasa, vuelve a desplegar el Worker con la llave nueva que genera un servidor con base nueva.
 - Un agente ejecuta las peticiones que le manda el servidor al que se conecta. Conéctalo sólo a un servidor tuyo y por HTTPS.
 - El webhook se envía a la dirección que configures, incluidas redes privadas (es intencional, para servicios internos).
 - No hay límite de intentos de inicio de sesión más allá de una pausa por intento fallido: usa un token largo y aleatorio (`openssl rand -hex 24`).
