@@ -311,9 +311,9 @@ async fn fetch_routed(app: &Ctx, url: &str, preferred: Option<&str>) -> (Result<
             Ok(p) if usable(&p) => return (Ok(p), route),
             Ok(p) => {
                 tried.push(match route {
-                    "relay" => "el relevo",
-                    "agent" => "el agente",
-                    _ => "este servidor",
+                    "relay" => "al relevo",
+                    "agent" => "al agente",
+                    _ => "a este servidor",
                 });
                 if route == "direct" {
                     direct_rejected = p.challenge || matches!(p.status, 403 | 429);
@@ -330,21 +330,21 @@ async fn fetch_routed(app: &Ctx, url: &str, preferred: Option<&str>) -> (Result<
     let Some(p) = worst else {
         return (Err(("error", direct_error.unwrap_or_else(|| "No se pudo obtener la página.".into()))), "direct");
     };
-    let from = tried.join(" y a ");
+    let from = tried.join(" y ");
     let err = if p.challenge && tried.len() == 1 {
         (
             "blocked",
-            format!("El sitio le pone un desafío anti-bots a {from}. Configura un relevo para revisarlo desde otra red (README → Relevo)."),
+            format!("El sitio le pone un desafío anti-bots {from}. Configura un relevo para revisarlo desde otra red (README → Relevo)."),
         )
     } else if p.challenge {
-        ("blocked", format!("El sitio le pone un desafío anti-bots a {from}."))
+        ("blocked", format!("El sitio le pone un desafío anti-bots {from}."))
     } else if p.status == 429 {
         (
             "blocked",
-            format!("El sitio dice que recibió demasiadas visitas (HTTP 429) al contestarle a {from}. Suele pasar con IPs de servidores; revisar con menos frecuencia ayuda."),
+            format!("El sitio dice que recibió demasiadas visitas (HTTP 429) al contestarle {from}. Suele pasar con IPs de servidores; revisar con menos frecuencia ayuda."),
         )
     } else if p.status == 403 {
-        ("blocked", format!("El sitio rechazó la visita (HTTP 403) al contestarle a {from}."))
+        ("blocked", format!("El sitio rechazó la visita (HTTP 403) al contestarle {from}."))
     } else {
         ("error", format!("El sitio respondió HTTP {}.", p.status))
     };

@@ -25,13 +25,16 @@ pub fn extract(html: &str, selector: Option<&str>) -> Result<Extracted, String> 
     // 1. JSON-LD (schema.org Product / Offer): what most shops publish for Google.
     for script in doc.select(&sel(r#"script[type="application/ld+json"]"#)) {
         let raw: String = script.text().collect();
-        if let Ok(v) = serde_json::from_str::<Value>(raw.trim())
-            && let Some(p) = find_product(&v, 0)
-        {
-            read_product(p, &mut out);
-            if out.price.is_some() {
-                break;
+        match serde_json::from_str::<Value>(raw.trim()) {
+            Ok(v) => {
+                if let Some(p) = find_product(&v, 0) {
+                    read_product(p, &mut out);
+                }
             }
+            Err(_) => read_broken_product(&raw, &mut out),
+        }
+        if out.price.is_some() {
+            break;
         }
     }
 
@@ -178,6 +181,29 @@ fn read_product(p: &Value, out: &mut Extracted) {
     out.in_stock = offer.get("availability").and_then(Value::as_str).and_then(availability);
 }
 
+/// Some shops publish JSON-LD that is not valid JSON (raw line breaks, a missing quote). Rather than
+/// lose the price, read the offer's fields straight from the text after `"offers"`.
+fn read_broken_product(raw: &str, out: &mut Extracted) {
+    if !raw.contains("Product") {
+        return;
+    }
+    let Some(offer) = raw.find("\"offers\"").map(|i| &raw[i..]) else { return };
+    out.price = loose_value(offer, "price").or(loose_value(offer, "lowPrice")).and_then(parse_price_str);
+    out.currency = loose_value(offer, "priceCurrency").map(String::from);
+    out.in_stock = loose_value(offer, "availability").and_then(availability);
+}
+
+/// The value that follows `"key":`, quoted or bare, without parsing the rest of the document.
+fn loose_value<'a>(s: &'a str, key: &str) -> Option<&'a str> {
+    let needle = format!("\"{key}\"");
+    let rest = s[s.find(&needle)? + needle.len()..].trim_start().strip_prefix(':')?.trim_start();
+    let value = match rest.strip_prefix('"') {
+        Some(quoted) => &quoted[..quoted.find('"')?],
+        None => &rest[..rest.find([',', '}', ' ', '\n']).unwrap_or(rest.len())],
+    };
+    Some(value.trim()).filter(|v| !v.is_empty())
+}
+
 fn availability(s: &str) -> Option<bool> {
     let s = s.to_ascii_lowercase().replace([' ', '_', '-'], "");
     if ["outofstock", "soldout", "discontinued"].iter().any(|k| s.contains(k)) {
@@ -252,6 +278,20 @@ mod tests {
         assert_eq!(e.text, "PC Gamer\nHola mundo");
         assert_eq!(extract(html, Some("h1")).unwrap().text, "PC Gamer");
         assert!(extract(html, Some("#nope")).is_err());
+    }
+
+    #[test]
+    fn broken_json_ld_still_gives_the_price() {
+        // Missing closing quote after productID and a raw line break inside a string, as seen on a real Shopify theme.
+        let html = "<html><head><title>PC Blanca</title><script type=\"application/ld+json\">{\"@type\":\"Product\",\"name\":\"PC\n Blanca\",
+          \"productID\":\"956, \"ID\":\"956\", \"offers\":{ \"@type\":\"Offer\", \"availability\":\"https://schema.org/InStock\",
+          \"price\":\"25799.00\", \"priceCurrency\":\"MXN\" } }</script></head><body>x</body></html>";
+        let e = extract(html, None).unwrap();
+        assert_eq!(
+            (e.price, e.currency.as_deref(), e.in_stock, e.title.as_deref()),
+            (Some(25799.0), Some("MXN"), Some(true), Some("PC Blanca"))
+        );
+        assert_eq!(loose_value("\"price\": 12.5, \"x\":1", "price"), Some("12.5"));
     }
 
     #[test]
