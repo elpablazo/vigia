@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Vigía</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%2334d399'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f6f4; --surface: #fff; --raised: #fafaf9; --text: #18181b; --muted: #6f6f76; --faint: #a1a1aa;
+  --border: #e6e5e1; --border-strong: #d4d4d0; --primary: #18181b; --on-primary: #fff;
+  --good: #0a8f5f; --good-bg: #e3f6ed; --bad: #c8322b; --bad-bg: #fde9e7; --warn: #a15c00; --warn-bg: #fdf0d5;
+  --shadow: 0 1px 2px rgb(0 0 0 / .04), 0 8px 24px rgb(0 0 0 / .06);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0c0e; --surface: #151518; --raised: #1b1b1f; --text: #ececee; --muted: #9a9aa3; --faint: #63636b;
+    --border: #25252a; --border-strong: #33333a; --primary: #ececee; --on-primary: #111;
+    --good: #3ecf8e; --good-bg: #10291f; --bad: #ff7b72; --bad-bg: #331616; --warn: #f0b354; --warn-bg: #2e2210;
+    --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 12px 32px rgb(0 0 0 / .5);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 20px 80px; }
+
+header { display: flex; align-items: center; gap: 12px; padding: 22px 0 26px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 650; font-size: 18px; letter-spacing: -.02em; margin-right: auto; }
+.brand svg { width: 24px; height: 24px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 99px; font-size: 12.5px; color: var(--muted); background: var(--surface); white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.on { background: var(--good); }
+.icon-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; border: 1px solid transparent; border-radius: 9px; background: none; color: var(--muted); }
+.icon-btn:hover { background: var(--raised); color: var(--text); border-color: var(--border); }
+.icon-btn svg { width: 17px; height: 17px; }
+
+.add { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
+.add-row { display: flex; gap: 8px; }
+.add input[type=url], .add input[type=text] { flex: 1; min-width: 0; height: 46px; padding: 0 14px; border: 0; background: none; font-size: 16px; outline: none; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); font-weight: 550; font-size: 14px; white-space: nowrap; }
+.btn:hover { background: var(--raised); }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.primary:hover { opacity: .88; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .55; cursor: default; }
+.add .btn.primary { height: 46px; padding: 0 20px; border-radius: 11px; font-size: 15px; }
+.add-more { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 8px 6px; border-top: 1px solid var(--border); margin-top: 8px; }
+.field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); flex: 1; min-width: 150px; }
+.field input, .field select { height: 36px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); font-size: 14px; color: var(--text); width: 100%; }
+.link-btn { border: 0; background: none; padding: 0; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: var(--text); }
+.under-add { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 12px 4px 22px; flex-wrap: wrap; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 99px; background: none; font-size: 13px; color: var(--muted); }
+.chip[aria-pressed=true] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.chip b { font-weight: 600; margin-left: 4px; opacity: .7; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { display: grid; grid-template-columns: 48px minmax(0, 1fr) 104px auto auto; align-items: center; gap: 14px; padding: 12px 12px 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; cursor: pointer; transition: border-color .12s, transform .12s; }
+.row:hover { border-color: var(--border-strong); }
+.row.paused { opacity: .6; }
+.thumb { position: relative; width: 48px; height: 48px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border); display: grid; place-items: center; font-weight: 650; color: var(--muted); overflow: hidden; text-transform: uppercase; flex: none; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.name { font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.005em; }
+.meta { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.meta span { overflow: hidden; text-overflow: ellipsis; }
+.meta > span:first-child { flex: none; max-width: 65%; }
+.meta .sep { color: var(--faint); flex: none; }
+.why { font-size: 12.5px; margin-top: 3px; white-space: normal; }
+.why.blocked { color: var(--warn); } .why.error { color: var(--bad); }
+.tag { font-size: 11.5px; padding: 1px 7px; border-radius: 6px; background: var(--raised); border: 1px solid var(--border); color: var(--muted); flex: none; }
+.spark { width: 104px; height: 30px; display: block; }
+.val { text-align: right; min-width: 118px; }
+.price { font-weight: 650; font-size: 16.5px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; }
+.price small { font-weight: 500; font-size: 11px; color: var(--muted); margin-left: 3px; }
+.sub { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 12px; margin-top: 2px; white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11.5px; font-weight: 600; }
+.badge.good { background: var(--good-bg); color: var(--good); } .badge.bad { background: var(--bad-bg); color: var(--bad); } .badge.warn { background: var(--warn-bg); color: var(--warn); }
+.badge.plain { background: var(--raised); color: var(--muted); border: 1px solid var(--border); }
+.delta { font-variant-numeric: tabular-nums; font-weight: 600; } .delta.down { color: var(--good); } .delta.up { color: var(--bad); }
+.acts { display: flex; gap: 2px; }
+.spin { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+.empty { text-align: center; color: var(--muted); padding: 56px 20px; border: 1px dashed var(--border-strong); border-radius: 14px; }
+
+dialog { border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 0; box-shadow: var(--shadow); }
+dialog::backdrop { background: rgb(0 0 0 / .35); backdrop-filter: blur(2px); }
+dialog.sheet { margin: 0 0 0 auto; height: 100dvh; max-height: none; width: min(560px, 100vw); max-width: none; border-width: 0 0 0 1px; }
+dialog.modal { border-radius: 16px; width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); }
+.d-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.d-head h2 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-body { padding: 18px 18px 40px; }
+section { margin-bottom: 26px; }
+section > h3 { margin: 0 0 10px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.hero { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+.hero .thumb { width: 72px; height: 72px; border-radius: 14px; font-size: 22px; }
+.hero h1 { margin: 0 0 4px; font-size: 18px; line-height: 1.25; letter-spacing: -.015em; }
+.hero a { color: var(--muted); font-size: 13px; word-break: break-all; }
+.big { font-size: 32px; font-weight: 680; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.big small { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 6px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; color: var(--muted); font-size: 13px; margin-top: 6px; }
+.chart { width: 100%; height: 130px; display: block; margin-top: 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hist { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.hist td { padding: 8px 4px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.hist td:last-child { text-align: right; }
+.hist .when { color: var(--muted); }
+.diff { margin: 8px 0 4px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font: 12.5px/1.5 var(--mono); max-height: 360px; overflow-y: auto; }
+.diff div { padding: 1px 10px; white-space: pre-wrap; word-break: break-word; }
+.diff .add { background: var(--good-bg); color: var(--good); } .diff .del { background: var(--bad-bg); color: var(--bad); text-decoration: line-through; }
+.diff .gap { color: var(--faint); text-align: center; border-block: 1px dashed var(--border); }
+pre.code { margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--raised); font: 12.5px/1.55 var(--mono); white-space: pre-wrap; word-break: break-all; position: relative; }
+.copy { float: right; margin: -4px -4px 4px 8px; height: 26px; padding: 0 9px; font-size: 12px; border-radius: 7px; }
+.hint { color: var(--muted); font-size: 13px; margin: 6px 0 10px; }
+.rowline { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.login { max-width: 340px; margin: 18vh auto 0; padding: 0 20px; text-align: center; }
+.login form { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+.login input { height: 46px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 11px; background: var(--surface); font-size: 16px; text-align: center; }
+.login .btn { height: 46px; }
+#toast { position: fixed; left: 50%; bottom: 24px; translate: -50% 0; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 11px; font-size: 14px; box-shadow: var(--shadow); max-width: calc(100vw - 32px); z-index: 99; opacity: 0; pointer-events: none; transition: opacity .15s; }
+#toast.show { opacity: 1; }
+
+@media (max-width: 640px) {
+  .wrap { padding: 0 14px 60px; }
+  header { padding: 16px 0 18px; }
+  .row { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 11px; padding: 11px; }
+  .row .spark, .row .acts { display: none; }
+  .thumb { width: 44px; height: 44px; }
+  .val { min-width: 0; }
+  .price { font-size: 15.5px; }
+  .pill.mem { display: none; }
+  .add .btn.primary { padding: 0 16px; }
+  .grid2 { grid-template-columns: 1fr; }
+  dialog.sheet { border: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div id="login" class="login" hidden>
+  <div class="brand" style="justify-content:center;margin:0"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><circle cx="16" cy="16" r="7" fill="none" stroke="var(--bg)" stroke-width="2.5"/><circle cx="16" cy="16" r="2.5" fill="#34d399"/></svg>Vigía</div>
+  <form id="login-form">
+    <label class="field" style="align-items:center">Token de acceso
+      <input id="login-token" type="password" autocomplete="current-password" required style="margin-top:6px">
+    </label>
+    <button class="btn primary">Entrar</button>
+  </form>
+</div>
+
+<div id="app" class="wrap" hidden>
+  <header>
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><circle cx="16" cy="16" r="7" fill="none" stroke="var(--bg)" stroke-width="2.5"/><circle cx="16" cy="16" r="2.5" fill="#34d399"/></svg>Vigía</div>
+    <span class="pill" id="pill-agent" title="Agentes conectados desde otras redes"><span class="dot"></span><span>Sin agente</span></span>
+    <span class="pill mem" id="pill-mem" title="Memoria que usa el servidor ahora"></span>
+    <button class="icon-btn" id="open-settings" aria-label="Ajustes" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+
+  <form class="add" id="add-form">
+    <div class="add-row">
+      <input id="add-url" type="text" inputmode="url" placeholder="Pega una URL para vigilarla" autocomplete="off" spellcheck="false" aria-label="URL a vigilar" required>
+      <button class="btn primary" id="add-btn">Vigilar</button>
+    </div>
+    <div class="add-more" id="add-more" hidden>
+      <label class="field">Revisar cada <select id="add-interval"></select></label>
+      <label class="field">Etiqueta <input id="add-tag" type="text" placeholder="opcional" maxlength="40"></label>
+      <label class="field">Sólo esta parte (selector CSS) <input id="add-selector" type="text" placeholder="opcional, p. ej. #precio" spellcheck="false"></label>
+    </div>
+  </form>
+  <div class="under-add">
+    <div class="filters" id="filters"></div>
+    <button class="link-btn" id="toggle-more" type="button">Opciones al agregar</button>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<dialog class="sheet" id="detail"><div class="d-head"><h2 id="detail-title"></h2><button class="icon-btn" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="d-body" id="detail-body"></div></dialog>
+<dialog class="modal" id="settings"><div class="d-head"><h2>Ajustes</h2><button class="icon-btn" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="d-body" id="settings-body"></div></dialog>
+<div id="toast" role="status"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const INTERVALS = [[300, '5 minutos'], [900, '15 minutos'], [3600, '1 hora'], [21600, '6 horas'], [43200, '12 horas'], [86400, '24 horas']];
+const ICON = {
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6v12M15 6v12"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M7 5l12 7-12 7z"/></svg>',
+};
+let watches = [], filter = 'all', openId = null, busy = new Set(), status = {};
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3200); }
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, { ...opts, headers: opts.body ? { 'content-type': 'application/json' } : {}, body: opts.body && JSON.stringify(opts.body) });
+  if (r.status === 401 && path !== '/login') { showLogin(); throw new Error('Sesión cerrada'); }
+  const data = r.status === 204 ? null : await r.json().catch(() => null);
+  if (!r.ok) throw new Error(data?.error || `Error ${r.status}`);
+  return data;
+}
+
+// ---------- formatting
+const rtf = new Intl.RelativeTimeFormat('es-MX', { numeric: 'auto', style: 'short' });
+function ago(ts) {
+  if (!ts) return 'nunca';
+  const s = Math.round(Date.now() / 1000 - ts);
+  if (s < 45) return 'hace un momento';
+  if (s < 3600) return rtf.format(-Math.round(s / 60), 'minute');
+  if (s < 86400) return rtf.format(-Math.round(s / 3600), 'hour');
+  return rtf.format(-Math.round(s / 86400), 'day');
+}
+const when = ts => new Date(ts * 1000).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function money(p, cur) {
+  if (p == null) return '';
+  const n = p.toLocaleString('es-MX', { minimumFractionDigits: Number.isInteger(p) ? 0 : 2, maximumFractionDigits: 2 });
+  return `$${n}${cur ? `<small>${esc(cur)}</small>` : ''}`;
+}
+const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+const every = s => (INTERVALS.find(i => i[0] === s) || [0, s % 3600 ? `${Math.round(s / 60)} min` : `${s / 3600} h`])[1];
+function delta(a, b) {
+  if (a == null || b == null || a === b) return '';
+  const pct = (b - a) / a * 100, up = b > a;
+  return `<span class="delta ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toLocaleString('es-MX', { maximumFractionDigits: 1 })}%</span>`;
+}
+function thumb(w) {
+  const img = /^https:\/\//.test(w.image || '') ? `<img src="${esc(w.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
+  return `<div class="thumb">${esc(host(w.url)[0] || '?')}${img}</div>`;
+}
+function stock(w) {
+  if (w.in_stock === true) return '<span class="badge good">Disponible</span>';
+  if (w.in_stock === false) return '<span class="badge bad">Agotado</span>';
+  return '';
+}
+
+// Step line: a price holds until the next change, and the last one holds until now.
+function chart(points, w, h, pad = 3) {
+  if (!points.length) return '';
+  const pts = [...points, [Date.now() / 1000, points.at(-1)[1]]];
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = xs[0], x1 = Math.max(xs.at(-1), x0 + 1), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const X = x => pad + (x - x0) / (x1 - x0) * (w - pad * 2);
+  const Y = y => y1 === y0 ? h / 2 : pad + (y1 - y) / (y1 - y0) * (h - pad * 2);
+  let d = `M${X(pts[0][0]).toFixed(1)} ${Y(pts[0][1]).toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) d += ` H${X(pts[i][0]).toFixed(1)} V${Y(pts[i][1]).toFixed(1)}`;
+  const first = ys[0], last = ys.at(-1);
+  const color = last < first ? 'var(--good)' : last > first ? 'var(--bad)' : 'var(--faint)';
+  return `<path d="${d} V${h} H${X(x0).toFixed(1)} Z" fill="${color}" opacity=".09"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<circle cx="${X(x1).toFixed(1)}" cy="${Y(last).toFixed(1)}" r="2.6" fill="${color}"/>`;
+}
+
+// ---------- list
+function matches(w) {
+  if (filter === 'all') return true;
+  if (filter === 'changed') return !!w.changed_at;
+  if (filter === 'problem') return w.status === 'blocked' || w.status === 'error';
+  return w.tag === filter.slice(4);
+}
+function renderFilters() {
+  const tags = [...new Set(watches.map(w => w.tag).filter(Boolean))].sort();
+  const problems = watches.filter(w => w.status === 'blocked' || w.status === 'error').length;
+  const changed = watches.filter(w => w.changed_at).length;
+  const items = [['all', 'Todo', watches.length], ['changed', 'Con cambios', changed], ['problem', 'Con problemas', problems], ...tags.map(t => ['tag:' + t, t, watches.filter(w => w.tag === t).length])];
+  if (!items.some(i => i[0] === filter)) filter = 'all';
+  $('#filters').innerHTML = watches.length < 2 ? '' : items.filter(i => i[0] === 'all' || i[2]).map(([k, label, n]) =>
+    `<button class="chip" data-filter="${esc(k)}" aria-pressed="${filter === k}">${esc(label)}<b>${n}</b></button>`).join('');
+}
+function renderRow(w) {
+  const sp = w.spark || [], prev = sp.length > 1 ? sp.at(-2)[1] : null;
+  const checking = busy.has(w.id) || w.status === 'new';
+  let value;
+  if (w.price != null) value = `<div class="price">${money(w.price, w.currency)}</div><div class="sub">${delta(prev, w.price)}${stock(w)}</div>`;
+  else if (w.status === 'ok') value = `<div class="sub">${w.changes ? `<span class="badge warn">${w.changes} ${w.changes === 1 ? 'cambio' : 'cambios'}</span>` : '<span class="badge plain">Sin cambios</span>'}</div>`;
+  else if (w.status === 'blocked') value = '<div class="sub"><span class="badge warn">Bloqueado</span></div>';
+  else if (w.status === 'error') value = '<div class="sub"><span class="badge bad">Error</span></div>';
+  else value = '<div class="sub"><span class="badge plain">Revisando…</span></div>';
+  const why = w.error ? `<div class="why ${esc(w.status)}">${esc(w.error)}</div>` : '';
+  return `<div class="row ${w.paused ? 'paused' : ''}" data-id="${esc(w.id)}" tabindex="0" role="button" aria-label="${esc(w.title || w.url)}">
+    ${thumb(w)}
+    <div style="min-width:0">
+      <div class="name">${esc(w.title || w.url)}</div>
+      <div class="meta"><span>${esc(host(w.url))}</span>${w.tag ? `<span class="tag">${esc(w.tag)}</span>` : ''}<span class="sep">·</span><span>${w.paused ? 'En pausa' : esc(ago(w.checked_at))}</span>${w.via === 'agent' ? '<span class="sep">·</span><span>vía agente</span>' : ''}</div>
+      ${why}
+    </div>
+    <svg class="spark" viewBox="0 0 104 30" aria-hidden="true">${sp.length > 1 ? chart(sp, 104, 30) : ''}</svg>
+    <div class="val">${value}</div>
+    <div class="acts">
+      <button class="icon-btn" data-act="check" title="Revisar ahora" aria-label="Revisar ahora"><span class="${checking ? 'spin' : ''}" style="display:grid">${ICON.refresh}</span></button>
+      <button class="icon-btn" data-act="pause" title="${w.paused ? 'Reanudar' : 'Pausar'}" aria-label="${w.paused ? 'Reanudar' : 'Pausar'}">${w.paused ? ICON.play : ICON.pause}</button>
+    </div>
+  </div>`;
+}
+function render() {
+  renderFilters();
+  const shown = watches.filter(matches);
+  $('#list').innerHTML = shown.length ? shown.map(renderRow).join('') : `<div class="empty">${watches.length ? 'Nada con ese filtro.' : 'Todavía no vigilas nada. Pega una URL arriba.'}</div>`;
+}
+async function load() {
+  watches = await api('/watches');
+  render();
+  api('/status').then(s => {
+    status = s;
+    const n = s.agents.length;
+    $('#pill-agent').innerHTML = `<span class="dot ${n ? 'on' : ''}"></span><span>${n ? (n === 1 ? esc(s.agents[0].name) : `${n} agentes`) : 'Sin agente'}</span>`;
+    $('#pill-mem').textContent = s.rss_kb ? `${(s.rss_kb / 1024).toFixed(1)} MB` : '';
+    $('#pill-mem').hidden = !s.rss_kb;
+  }).catch(() => {});
+}
+
+async function act(id, what) {
+  const w = watches.find(x => x.id === id);
+  try {
+    if (what === 'check') {
+      busy.add(id); render();
+      const r = await api(`/watches/${id}/check`, { method: 'POST' });
+      toast(r.watch.status !== 'ok' ? r.watch.error : r.changed ? 'Cambió desde la última vez' : 'Sin cambios');
+    } else if (what === 'pause') {
+      await api(`/watches/${id}`, { method: 'PATCH', body: { paused: !w.paused } });
+    } else if (what === 'delete') {
+      if (!confirm(`¿Eliminar «${w.title || w.url}» y su historial?`)) return;
+      await api(`/watches/${id}`, { method: 'DELETE' });
+      $('#detail').close();
+    }
+  } catch (e) { toast(e.message); }
+  busy.delete(id);
+  await load();
+  if (openId === id && what !== 'delete') openDetail(id);
+}
+
+// ---------- detail
+async function openDetail(id) {
+  let w;
+  try { w = await api(`/watches/${id}`); } catch (e) { return toast(e.message); }
+  openId = id;
+  const hist = w.history, prices = hist.filter(h => h.price != null).map(h => [h.at, h.price]).reverse();
+  const origin = location.origin;
+  $('#detail-title').textContent = host(w.url);
+  const histRows = hist.map((h, i) => {
+    const older = hist[i + 1];
+    if (h.text) return `<tr><td class="when">${esc(when(h.at))}</td><td>${older ? 'Cambió el texto' : 'Primera versión'}</td><td><button class="link-btn" data-diff="${h.id}">${older ? 'Ver cambios' : 'Ver texto'}</button></td></tr><tr hidden><td colspan="3" style="border:0;padding:0"></td></tr>`;
+    return `<tr><td class="when">${esc(when(h.at))}</td><td><b>${money(h.price, h.currency)}</b> ${older ? delta(older.price, h.price) : ''}</td><td>${stock(h)}</td></tr>`;
+  }).join('');
+  $('#detail-body').innerHTML = `
+    <div class="hero">${thumb(w)}<div style="min-width:0"><h1>${esc(w.title || host(w.url))}</h1><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.url.length > 90 ? w.url.slice(0, 90) + '…' : w.url)} ↗</a></div></div>
+    ${w.price != null ? `<div class="big">${money(w.price, w.currency)}</div>` : ''}
+    <div class="facts">${stock(w)}<span>Revisado ${esc(ago(w.checked_at))}</span>${w.ms != null ? `<span>· ${w.ms} ms</span>` : ''}${w.via ? `<span>· ${w.via === 'agent' ? 'vía agente' : 'directo'}</span>` : ''}${w.changed_at ? `<span>· cambió ${esc(ago(w.changed_at))}</span>` : ''}</div>
+    ${w.error ? `<div class="why ${esc(w.status)}" style="margin-top:10px;font-size:13.5px">${esc(w.error)}</div>` : ''}
+    ${prices.length > 1 ? `<svg class="chart" viewBox="0 0 520 130" preserveAspectRatio="none" role="img" aria-label="Historial de precio">${chart(prices, 520, 130, 6)}</svg>` : ''}
+    <div class="rowline" style="margin:18px 0 26px">
+      <button class="btn primary" data-dact="check">${ICON.refresh.replace('<svg', '<svg width="16" height="16"')} Revisar ahora</button>
+      <button class="btn" data-dact="pause">${w.paused ? 'Reanudar' : 'Pausar'}</button>
+      <button class="btn danger" data-dact="delete" style="margin-left:auto">Eliminar</button>
+    </div>
+    <section><h3>Historial</h3>${hist.length ? `<table class="hist">${histRows}</table>` : '<div class="hint">Aún no hay ninguna revisión exitosa.</div>'}</section>
+    <section><h3>Configuración</h3>
+      <form id="edit-form">
+        <div class="grid2">
+          <label class="field">Revisar cada <select name="interval">${intervalOptions(w.interval)}</select></label>
+          <label class="field">Etiqueta <input name="tag" value="${esc(w.tag)}" maxlength="40"></label>
+          <label class="field">Qué vigilar <select name="mode">${[['auto', 'Automático'], ['price', 'Precio y existencias'], ['text', 'Texto de la página']].map(([v, l]) => `<option value="${v}" ${w.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="field">Sólo esta parte (selector CSS) <input name="selector" value="${esc(w.selector || '')}" placeholder="toda la página" spellcheck="false"></label>
+        </div>
+        <div class="hint">Cambiar qué se vigila o el selector reinicia el historial.</div>
+        <button class="btn">Guardar</button>
+      </form>
+    </section>
+    <section><h3>Desde otro programa</h3>
+      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span>curl -H "Authorization: Bearer $VIGIA_TOKEN" ${esc(origin)}/api/watches/${esc(w.id)}</span></pre>
+    </section>`;
+  if (!$('#detail').open) $('#detail').showModal();
+}
+function intervalOptions(sel) {
+  const opts = INTERVALS.some(i => i[0] === sel) ? INTERVALS : [...INTERVALS, [sel, every(sel)]].sort((a, b) => a[0] - b[0]);
+  return opts.map(([v, l]) => `<option value="${v}" ${v === sel ? 'selected' : ''}>${l}</option>`).join('');
+}
+async function showDiff(btn) {
+  const holder = btn.closest('tr').nextElementSibling;
+  if (!holder.hidden) { holder.hidden = true; return; }
+  try {
+    const d = await api(`/watches/${openId}/snapshots/${btn.dataset.diff}/diff`);
+    const cls = { '+': 'add', '-': 'del', '@': 'gap' };
+    holder.firstElementChild.innerHTML = `<div class="diff">${d.first ? `<div>${esc(d.text)}</div>` : d.lines.map(l => `<div class="${cls[l.t] || ''}">${l.t === '@' ? '⋯' : esc(l.s) || '&nbsp;'}</div>`).join('')}</div>`;
+    holder.hidden = false;
+  } catch (e) { toast(e.message); }
+}
+
+// ---------- settings
+async function openSettings() {
+  let s;
+  try { s = await api('/settings'); } catch (e) { return toast(e.message); }
+  const o = location.origin, agents = status.agents || [];
+  $('#settings-body').innerHTML = `
+    <section><h3>Avisos</h3>
+      <div class="hint">Cada cambio se envía como POST con JSON a esta dirección (n8n, Zapier, tu propio servicio).</div>
+      <form id="hook-form" class="rowline"><label class="field" style="flex:1 1 260px">Webhook <input name="webhook_url" type="url" value="${esc(s.webhook_url)}" placeholder="https://…"></label><button class="btn">Guardar</button><button class="btn" type="button" id="hook-test">Probar</button></form>
+    </section>
+    <section><h3>Revisión</h3>
+      <form id="check-form"><div class="grid2">
+        <label class="field">Intervalo para vigilancias nuevas <select name="default_interval">${intervalOptions(+s.default_interval || 3600)}</select></label>
+        <label class="field">User-Agent <input name="user_agent" value="${esc(s.user_agent)}" placeholder="${esc(s.default_user_agent)}" spellcheck="false"></label>
+      </div><button class="btn" style="margin-top:12px">Guardar</button></form>
+    </section>
+    <section><h3>Agentes</h3>
+      <div class="hint">Un agente es este mismo programa corriendo en otra red (tu casa, tu laptop). Cuando un sitio rechaza la IP del servidor, la página se pide desde el agente.</div>
+      <div class="facts" style="margin-bottom:10px">${agents.length ? agents.map(a => `<span class="pill"><span class="dot on"></span>${esc(a.name)}</span>`).join('') : '<span class="pill"><span class="dot"></span>Ninguno conectado</span>'}</div>
+      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span>VIGIA_SERVER=${esc(o)} VIGIA_TOKEN=$VIGIA_TOKEN VIGIA_AGENT_NAME=casa vigia agent</span></pre>
+    </section>
+    <section><h3>API y MCP</h3>
+      <div class="hint">Todo lo que hace esta pantalla está en la API. Autenticación: <code>Authorization: Bearer &lt;token&gt;</code>.</div>
+      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span># Vigilar una URL (responde ya con precio y existencias)
+curl -X POST ${esc(o)}/api/watches -H "Authorization: Bearer $VIGIA_TOKEN" \\
+  -H "content-type: application/json" -d '{"url":"https://…"}'
+
+# Servidor MCP para asistentes de IA
+${esc(o)}/mcp</span></pre>
+    </section>
+    <div class="rowline"><span class="hint" style="margin:0;flex:1">Vigía ${esc(status.version || '')}</span><button class="btn" id="logout">Cerrar sesión</button></div>`;
+  if (!$('#settings').open) $('#settings').showModal();
+}
+async function saveSettings(form, msg) {
+  try { await api('/settings', { method: 'PUT', body: Object.fromEntries(new FormData(form)) }); toast(msg); } catch (e) { toast(e.message); }
+}
+
+// ---------- wiring
+function showLogin() { $('#app').hidden = true; $('#login').hidden = false; document.querySelectorAll('dialog[open]').forEach(d => d.close()); $('#login-token').focus(); }
+$('#login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  try { await api('/login', { method: 'POST', body: { token: $('#login-token').value } }); $('#login-token').value = ''; start(); } catch (err) { toast(err.message); }
+});
+$('#add-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('#add-btn'), url = $('#add-url').value.trim();
+  if (!url) return;
+  btn.disabled = true; btn.textContent = 'Revisando…';
+  try {
+    const body = { url, interval: +$('#add-interval').value };
+    if ($('#add-tag').value.trim()) body.tag = $('#add-tag').value;
+    if ($('#add-selector').value.trim()) body.selector = $('#add-selector').value;
+    const w = await api('/watches', { method: 'POST', body });
+    $('#add-url').value = '';
+    toast(w.existing ? 'Esa URL ya estaba vigilada' : w.status === 'ok' ? 'Vigilando' : w.error);
+  } catch (err) { toast(err.message); }
+  btn.disabled = false; btn.textContent = 'Vigilar';
+  load().catch(() => {});
+});
+$('#toggle-more').addEventListener('click', () => { $('#add-more').hidden = !$('#add-more').hidden; });
+$('#filters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (b) { filter = b.dataset.filter; render(); } });
+$('#list').addEventListener('click', e => {
+  const row = e.target.closest('.row'); if (!row) return;
+  const a = e.target.closest('[data-act]');
+  a ? act(row.dataset.id, a.dataset.act) : openDetail(row.dataset.id);
+});
+$('#list').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('row')) openDetail(e.target.dataset.id); });
+$('#open-settings').addEventListener('click', openSettings);
+document.addEventListener('click', async e => {
+  const t = e.target;
+  if (t.closest('[data-close]')) t.closest('dialog').close();
+  else if (t.tagName === 'DIALOG') t.close(); // click on the backdrop
+  else if (t.closest('[data-dact]')) act(openId, t.closest('[data-dact]').dataset.dact);
+  else if (t.closest('[data-diff]')) showDiff(t.closest('[data-diff]'));
+  else if (t.closest('[data-copy]')) { await navigator.clipboard.writeText(t.closest('pre').querySelector('span').textContent).catch(() => {}); toast('Copiado'); }
+  else if (t.id === 'hook-test') { try { await api('/settings', { method: 'PUT', body: { webhook_url: t.form.webhook_url.value } }); await api('/settings/webhook-test', { method: 'POST' }); toast('El webhook respondió bien'); } catch (err) { toast(err.message); } }
+  else if (t.id === 'logout') { await api('/logout', { method: 'POST' }).catch(() => {}); showLogin(); }
+});
+document.addEventListener('submit', async e => {
+  const f = e.target;
+  if (f.id === 'edit-form') {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f)); d.interval = +d.interval;
+    try { await api(`/watches/${openId}`, { method: 'PATCH', body: d }); toast('Guardado'); await load(); openDetail(openId); } catch (err) { toast(err.message); }
+  } else if (f.id === 'hook-form' || f.id === 'check-form') { e.preventDefault(); saveSettings(f, 'Guardado'); }
+});
+$('#detail').addEventListener('close', () => { openId = null; });
+
+async function start() {
+  $('#add-interval').innerHTML = intervalOptions(3600);
+  try {
+    await load();
+    $('#login').hidden = true; $('#app').hidden = false;
+    api('/settings').then(s => { $('#add-interval').innerHTML = intervalOptions(+s.default_interval || 3600); }).catch(() => {});
+  } catch {}
+}
+setInterval(() => { if (!document.hidden && !$('#app').hidden && !document.querySelector('dialog[open]')) load().catch(() => {}); }, 8000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#app').hidden) load().catch(() => {}); });
+start();
+</script>
+</body>
+</html>
