@@ -25,6 +25,7 @@ pub struct App {
     db: Mutex<Connection>,
     http: reqwest::Client,
     agents: fetch::Agents,
+    relay: Option<fetch::Relay>,
     token: String,
     started: Instant,
     /// Watches being checked right now, so the scheduler and "check now" never overlap.
@@ -258,7 +259,7 @@ pub fn delete_watch(app: &Ctx, id: &str) -> ApiResult {
 /// One-off: fetch a page and say what is there, without saving anything.
 pub async fn extract_once(app: &Ctx, url: &str, selector: Option<&str>) -> ApiResult {
     let url = clean_url(url)?;
-    let (page, via) = fetch_routed(app, &url, false).await;
+    let (page, via) = fetch_routed(app, &url, None).await;
     let page = page.map_err(|(_, msg)| ApiError(StatusCode::BAD_GATEWAY, msg))?;
     let ex = extract::extract(&page.body, selector).map_err(bad)?;
     let mut v = serde_json::to_value(&ex).unwrap();
@@ -272,41 +273,78 @@ fn usable(p: &fetch::Page) -> bool {
     !p.challenge && (200..300).contains(&p.status)
 }
 
-/// Direct first; if the site challenges or rejects this server and an agent is online, through the agent.
-/// Watches that last worked through an agent go there first, to stop poking the challenge.
-async fn fetch_routed(app: &Ctx, url: &str, prefer_agent: bool) -> (Result<fetch::Page, (&'static str, String)>, &'static str) {
+/// Where to fetch from, in order. Direct always comes first unless the watch last worked through
+/// another route: then that one leads, to stop poking a site that rejects this server.
+fn route_order(preferred: Option<&str>, has_relay: bool, agent_up: bool) -> Vec<&'static str> {
+    let mut order = vec!["direct"];
+    if has_relay {
+        order.push("relay");
+    }
+    if agent_up {
+        order.push("agent");
+    }
+    if let Some(i) = order.iter().position(|r| Some(*r) == preferred) {
+        let p = order.remove(i);
+        order.insert(0, p);
+    }
+    order
+}
+
+/// Tries each route until one returns the page. The relay and agents are only asked when the site
+/// rejected this server (challenge, 403, 429) or when they are the watch's known-good route.
+async fn fetch_routed(app: &Ctx, url: &str, preferred: Option<&str>) -> (Result<fetch::Page, (&'static str, String)>, &'static str) {
     let ua = app.user_agent();
-    let agent_up = !app.agents.online().is_empty();
-    if prefer_agent
-        && agent_up
-        && let Ok(p) = app.agents.fetch(url, &ua).await
-        && usable(&p)
-    {
-        return (Ok(p), "agent");
+    let order = route_order(preferred, app.relay.is_some(), !app.agents.online().is_empty());
+    let leader = order[0];
+    let (mut direct_rejected, mut tried, mut worst): (bool, Vec<&str>, Option<fetch::Page>) = (false, Vec::new(), None);
+    let mut direct_error = None;
+    for route in order {
+        if route != "direct" && route != leader && !direct_rejected {
+            continue;
+        }
+        let res = match (route, &app.relay) {
+            ("relay", Some(relay)) => relay.fetch(&app.http, url, &ua).await,
+            ("agent", _) => app.agents.fetch(url, &ua).await,
+            _ => fetch::direct(&app.http, url, &ua).await,
+        };
+        match res {
+            Ok(p) if usable(&p) => return (Ok(p), route),
+            Ok(p) => {
+                tried.push(match route {
+                    "relay" => "el relevo",
+                    "agent" => "el agente",
+                    _ => "este servidor",
+                });
+                if route == "direct" {
+                    direct_rejected = p.challenge || matches!(p.status, 403 | 429);
+                }
+                // Report the direct answer when there is one; otherwise whatever came back last.
+                if route == "direct" || worst.is_none() {
+                    worst = Some(p);
+                }
+            }
+            Err(e) if route == "direct" => direct_error = Some(e),
+            Err(e) => eprintln!("{route}: {e}"),
+        }
     }
-    let p = match fetch::direct(&app.http, url, &ua).await {
-        Ok(p) if usable(&p) => return (Ok(p), "direct"),
-        Ok(p) => p,
-        Err(e) => return (Err(("error", e)), "direct"),
+    let Some(p) = worst else {
+        return (Err(("error", direct_error.unwrap_or_else(|| "No se pudo obtener la página.".into()))), "direct");
     };
-    let rejected = p.challenge || matches!(p.status, 403 | 429);
-    if rejected
-        && agent_up
-        && !prefer_agent
-        && let Ok(a) = app.agents.fetch(url, &ua).await
-        && usable(&a)
-    {
-        return (Ok(a), "agent");
-    }
-    let err = if p.challenge && agent_up {
-        ("blocked", "El sitio le pone un desafío anti-bots a este servidor y también al agente.".to_string())
-    } else if p.challenge {
+    let from = tried.join(" y a ");
+    let err = if p.challenge && tried.len() == 1 {
         (
             "blocked",
-            "El sitio le pone un desafío anti-bots a la IP de este servidor. Conecta un agente desde otra red (Ajustes → Agentes) para revisarlo desde ahí.".to_string(),
+            format!("El sitio le pone un desafío anti-bots a {from}. Configura un relevo para revisarlo desde otra red (README → Relevo)."),
         )
-    } else if rejected {
-        ("blocked", format!("El sitio rechazó la visita (HTTP {}).", p.status))
+    } else if p.challenge {
+        ("blocked", format!("El sitio le pone un desafío anti-bots a {from}."))
+    } else if p.status == 429 {
+        (
+            "blocked",
+            format!("El sitio dice que recibió demasiadas visitas (HTTP 429) al contestarle a {from}. Suele pasar con IPs de servidores; revisar con menos frecuencia ayuda."),
+        )
+    } else if p.status == 403 {
+        ("blocked", format!("El sitio rechazó la visita (HTTP 403) al contestarle a {from}."))
     } else {
         ("error", format!("El sitio respondió HTTP {}.", p.status))
     };
@@ -326,7 +364,7 @@ pub async fn check(app: &Ctx, id: &str) -> ApiResult {
 async fn check_inner(app: &Ctx, w: &Watch) -> ApiResult {
     let _slot = app.slots.acquire().await.unwrap();
     let t0 = Instant::now();
-    let (page, via) = fetch_routed(app, &w.url, w.via.as_deref() == Some("agent")).await;
+    let (page, via) = fetch_routed(app, &w.url, w.via.as_deref()).await;
     let ms = t0.elapsed().as_millis() as i64;
     let at = now();
 
@@ -603,7 +641,7 @@ async fn h_status(State(app): State<Ctx>) -> Api {
         .map(|pages| pages * 4);
     let agents: Vec<Value> = app.agents.online().into_iter().map(|name| json!({ "name": name })).collect();
     Ok(Json(
-        json!({ "version": env!("CARGO_PKG_VERSION"), "uptime_secs": app.started.elapsed().as_secs(), "watches": watches, "rss_kb": rss_kb, "agents": agents }),
+        json!({ "version": env!("CARGO_PKG_VERSION"), "uptime_secs": app.started.elapsed().as_secs(), "watches": watches, "rss_kb": rss_kb, "agents": agents, "relay": app.relay.is_some() }),
     ))
 }
 
@@ -723,6 +761,7 @@ async fn main() {
         db: Mutex::new(db),
         http: fetch::client(),
         agents: Default::default(),
+        relay: fetch::Relay::from_env(),
         token,
         started: Instant::now(),
         busy: Default::default(),
@@ -756,5 +795,19 @@ async fn main() {
         r = axum::serve(listener, router) => r.expect("server"),
         _ = term.recv() => {}
         _ = tokio::signal::ctrl_c() => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::route_order;
+
+    #[test]
+    fn routes() {
+        assert_eq!(route_order(None, false, false), ["direct"]);
+        assert_eq!(route_order(None, true, true), ["direct", "relay", "agent"]);
+        assert_eq!(route_order(Some("relay"), true, true), ["relay", "direct", "agent"]);
+        assert_eq!(route_order(Some("agent"), true, false), ["direct", "relay"]); // agent went away
+        assert_eq!(route_order(Some("direct"), true, false), ["direct", "relay"]);
     }
 }

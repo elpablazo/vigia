@@ -119,6 +119,39 @@ pub async fn direct(http: &reqwest::Client, url: &str, user_agent: &str) -> Resu
     })
 }
 
+// ---------------------------------------------------------------- relay
+
+/// A stateless fetcher on another network (see relay/worker.js) that the server calls over HTTPS.
+pub struct Relay {
+    pub url: String,
+    pub token: String,
+}
+
+impl Relay {
+    pub fn from_env() -> Option<Relay> {
+        let get = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        Some(Relay {
+            url: get("VIGIA_RELAY_URL")?,
+            token: get("VIGIA_RELAY_TOKEN")?,
+        })
+    }
+
+    pub async fn fetch(&self, http: &reqwest::Client, url: &str, user_agent: &str) -> Result<Page, String> {
+        let r = http
+            .post(&self.url)
+            .timeout(Duration::from_secs(40))
+            .bearer_auth(&self.token)
+            .json(&serde_json::json!({ "url": url, "user_agent": user_agent }))
+            .send()
+            .await
+            .map_err(|e| format!("No se pudo llamar al relevo: {e}"))?;
+        if !r.status().is_success() {
+            return Err(format!("El relevo respondió HTTP {}", r.status().as_u16()));
+        }
+        r.json().await.map_err(|e| format!("Respuesta inesperada del relevo: {e}"))
+    }
+}
+
 // ---------------------------------------------------------------- agents
 
 #[derive(Serialize, Deserialize, Debug)]

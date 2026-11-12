@@ -22,6 +22,7 @@ O descarga el binario estático de [Releases](https://github.com/elpablazo/vigia
 | `VIGIA_DB` | Ruta del archivo SQLite | `/data/vigia.db` en Docker |
 | `PORT` | Puerto | `8080` |
 | `VIGIA_ALLOW_PRIVATE` | `1` permite vigilar direcciones de red privada | apagado |
+| `VIGIA_RELAY_URL`, `VIGIA_RELAY_TOKEN` | Relevo para sitios que rechazan la IP del servidor (ver abajo) | sin relevo |
 
 ## Cómo decide qué vigilar
 
@@ -68,9 +69,23 @@ En vigilancias de texto, `diff` trae las diferencias en formato unificado.
 claude mcp add --transport http vigia https://tu-vigia/mcp --header "Authorization: Bearer $VIGIA_TOKEN"
 ```
 
+## Relevo
+
+Algunos sitios rechazan las IP de centros de datos: responden con un desafío anti-bots o con 403/429 aunque la página sea pública. El relevo es un Worker de Cloudflare sin estado (`relay/worker.js`, 50 líneas) que el servidor llama para pedir la página desde otra red. No necesita ninguna máquina tuya encendida y cabe de sobra en el plan gratuito.
+
+```bash
+cd relay
+npx wrangler deploy
+openssl rand -hex 24 | npx wrangler secret put RELAY_TOKEN   # guarda ese valor
+```
+
+En el servidor define `VIGIA_RELAY_URL` (la dirección `https://vigia-relay.<tu-cuenta>.workers.dev` que imprime el deploy) y `VIGIA_RELAY_TOKEN` (el mismo valor del secreto).
+
+El servidor siempre intenta primero directo. Sólo si el sitio lo rechaza repite la petición por el relevo, y recuerda esa ruta para esa vigilancia. El relevo no resuelve desafíos: si el sitio también lo rechaza a él, la vigilancia queda «Bloqueado» y lo dice.
+
 ## Agentes
 
-Algunos sitios rechazan las IP de centros de datos. Un agente es este mismo binario corriendo en otra red (tu casa, tu laptop): se conecta al servidor hacia afuera, sin abrir puertos, y pide las páginas desde ahí.
+Otra ruta, para cuando ni el servidor ni el relevo pueden: un agente es este mismo binario corriendo en otra red (tu casa, tu laptop). Se conecta al servidor hacia afuera, sin abrir puertos, y pide las páginas desde ahí mientras esté encendido.
 
 ```bash
 VIGIA_SERVER=https://tu-vigia VIGIA_TOKEN=… VIGIA_AGENT_NAME=casa vigia agent
@@ -80,12 +95,10 @@ docker run -d --restart unless-stopped --name vigia-agent -e VIGIA_SERVER=https:
   -e VIGIA_TOKEN=… -e VIGIA_AGENT_NAME=casa ghcr.io/elpablazo/vigia agent
 ```
 
-El servidor intenta primero directo. Si el sitio lo rechaza (HTTP 403/429 o un desafío anti-bots) y hay un agente conectado, repite la petición por el agente y recuerda esa ruta para esa vigilancia.
-
 ## Lo que no hace
 
 - No ejecuta JavaScript: las páginas que arman su contenido en el navegador llegan vacías y se reportan así.
-- No resuelve CAPTCHAs ni desafíos anti-bots, y no disfraza su identidad: se presenta como `Vigia/<versión>` (el User-Agent se puede cambiar en Ajustes). Un sitio que desafía al servidor se marca como «Bloqueado».
+- No resuelve CAPTCHAs ni desafíos anti-bots, y no disfraza su identidad: se presenta como `Vigia/<versión>` (el User-Agent se puede cambiar en Ajustes). Un sitio que rechaza todas las rutas configuradas se marca como «Bloqueado». Pasa, por ejemplo, con tiendas de Shopify que responden 429 a cualquier IP de servidor.
 - Un solo usuario (un token). Avisos sólo por webhook.
 
 ## Desarrollo
@@ -95,7 +108,7 @@ cargo test
 VIGIA_TOKEN=dev cargo run   # http://localhost:8080
 ```
 
-Código: `src/main.rs` (API, revisiones, programador), `src/extract.rs` (HTML → precio/texto), `src/fetch.rs` (peticiones y agentes), `src/mcp.rs`, `src/ui.html` (interfaz, sin dependencias).
+Código: `src/main.rs` (API, revisiones, programador), `src/extract.rs` (HTML → precio/texto), `src/fetch.rs` (peticiones, relevo y agentes), `src/mcp.rs`, `src/ui.html` (interfaz, sin dependencias), `relay/worker.js` (relevo).
 
 ## Publicación y despliegue
 

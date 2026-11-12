@@ -158,7 +158,7 @@ pre.code { margin: 0; padding: 12px; border: 1px solid var(--border); border-rad
 <div id="app" class="wrap" hidden>
   <header>
     <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><circle cx="16" cy="16" r="7" fill="none" stroke="var(--bg)" stroke-width="2.5"/><circle cx="16" cy="16" r="2.5" fill="#34d399"/></svg>Vigía</div>
-    <span class="pill" id="pill-agent" title="Agentes conectados desde otras redes"><span class="dot"></span><span>Sin agente</span></span>
+    <span class="pill" id="pill-agent" title="Por dónde se piden las páginas que rechazan a este servidor"><span class="dot"></span><span>Sólo directo</span></span>
     <span class="pill mem" id="pill-mem" title="Memoria que usa el servidor ahora"></span>
     <button class="icon-btn" id="open-settings" aria-label="Ajustes" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </header>
@@ -195,6 +195,7 @@ const ICON = {
   pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6v12M15 6v12"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M7 5l12 7-12 7z"/></svg>',
 };
+const VIA = { relay: 'vía relevo', agent: 'vía agente' };
 let watches = [], filter = 'all', openId = null, busy = new Set(), status = {};
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3200); }
@@ -286,7 +287,7 @@ function renderRow(w) {
     ${thumb(w)}
     <div style="min-width:0">
       <div class="name">${esc(w.title || w.url)}</div>
-      <div class="meta"><span>${esc(host(w.url))}</span>${w.tag ? `<span class="tag">${esc(w.tag)}</span>` : ''}<span class="sep">·</span><span>${w.paused ? 'En pausa' : esc(ago(w.checked_at))}</span>${w.via === 'agent' ? '<span class="sep">·</span><span>vía agente</span>' : ''}</div>
+      <div class="meta"><span>${esc(host(w.url))}</span>${w.tag ? `<span class="tag">${esc(w.tag)}</span>` : ''}<span class="sep">·</span><span>${w.paused ? 'En pausa' : esc(ago(w.checked_at))}</span>${VIA[w.via] ? `<span class="sep">·</span><span>${VIA[w.via]}</span>` : ''}</div>
       ${why}
     </div>
     <svg class="spark" viewBox="0 0 104 30" aria-hidden="true">${sp.length > 1 ? chart(sp, 104, 30) : ''}</svg>
@@ -307,8 +308,8 @@ async function load() {
   render();
   api('/status').then(s => {
     status = s;
-    const n = s.agents.length;
-    $('#pill-agent').innerHTML = `<span class="dot ${n ? 'on' : ''}"></span><span>${n ? (n === 1 ? esc(s.agents[0].name) : `${n} agentes`) : 'Sin agente'}</span>`;
+    const routes = [...(s.relay ? ['Relevo'] : []), ...s.agents.map(a => a.name)];
+    $('#pill-agent').innerHTML = `<span class="dot ${routes.length ? 'on' : ''}"></span><span>${routes.length ? esc(routes.join(' + ')) : 'Sólo directo'}</span>`;
     $('#pill-mem').textContent = s.rss_kb ? `${(s.rss_kb / 1024).toFixed(1)} MB` : '';
     $('#pill-mem').hidden = !s.rss_kb;
   }).catch(() => {});
@@ -350,7 +351,7 @@ async function openDetail(id) {
   $('#detail-body').innerHTML = `
     <div class="hero">${thumb(w)}<div style="min-width:0"><h1>${esc(w.title || host(w.url))}</h1><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.url.length > 90 ? w.url.slice(0, 90) + '…' : w.url)} ↗</a></div></div>
     ${w.price != null ? `<div class="big">${money(w.price, w.currency)}</div>` : ''}
-    <div class="facts">${stock(w)}<span>Revisado ${esc(ago(w.checked_at))}</span>${w.ms != null ? `<span>· ${w.ms} ms</span>` : ''}${w.via ? `<span>· ${w.via === 'agent' ? 'vía agente' : 'directo'}</span>` : ''}${w.changed_at ? `<span>· cambió ${esc(ago(w.changed_at))}</span>` : ''}</div>
+    <div class="facts">${stock(w)}<span>Revisado ${esc(ago(w.checked_at))}</span>${w.ms != null ? `<span>· ${w.ms} ms</span>` : ''}${w.via ? `<span>· ${VIA[w.via] || 'directo'}</span>` : ''}${w.changed_at ? `<span>· cambió ${esc(ago(w.changed_at))}</span>` : ''}</div>
     ${w.error ? `<div class="why ${esc(w.status)}" style="margin-top:10px;font-size:13.5px">${esc(w.error)}</div>` : ''}
     ${prices.length > 1 ? `<svg class="chart" viewBox="0 0 520 130" preserveAspectRatio="none" role="img" aria-label="Historial de precio">${chart(prices, 520, 130, 6)}</svg>` : ''}
     <div class="rowline" style="margin:18px 0 26px">
@@ -407,12 +408,10 @@ async function openSettings() {
         <label class="field">User-Agent <input name="user_agent" value="${esc(s.user_agent)}" placeholder="${esc(s.default_user_agent)}" spellcheck="false"></label>
       </div><button class="btn" style="margin-top:12px">Guardar</button></form>
     </section>
-    <section><h3>Agentes</h3>
-      <div class="hint">Un agente es este mismo programa corriendo en otra red (tu casa, tu laptop). Cuando un sitio rechaza la IP del servidor, la página se pide desde el agente.</div>
-      <div class="facts" style="margin-bottom:10px">${agents.length ? agents.map(a => `<span class="pill"><span class="dot on"></span>${esc(a.name)}</span>`).join('') : '<span class="pill"><span class="dot"></span>Ninguno conectado</span>'}</div>
-      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span>docker run -d --restart unless-stopped --name vigia-agent \\
-  -e VIGIA_SERVER=${esc(o)} -e VIGIA_TOKEN=$VIGIA_TOKEN -e VIGIA_AGENT_NAME=casa \\
-  ghcr.io/elpablazo/vigia agent</span></pre>
+    <section><h3>Otras rutas</h3>
+      <div class="hint">Las páginas se piden desde este servidor. Si un sitio lo rechaza, se piden por el relevo (un Worker que el servidor llama, sin máquinas tuyas) y, si hay alguno conectado, por un agente.</div>
+      <div class="facts" style="margin-bottom:10px"><span class="pill"><span class="dot ${status.relay ? 'on' : ''}"></span>Relevo ${status.relay ? 'configurado' : 'sin configurar'}</span>${agents.map(a => `<span class="pill"><span class="dot on"></span>Agente ${esc(a.name)}</span>`).join('')}</div>
+      <div class="hint" style="margin:0">El relevo se configura con <code>VIGIA_RELAY_URL</code> y <code>VIGIA_RELAY_TOKEN</code>; los pasos están en el README.</div>
     </section>
     <section><h3>API y MCP</h3>
       <div class="hint">Todo lo que hace esta pantalla está en la API. Autenticación: <code>Authorization: Bearer &lt;token&gt;</code>.</div>

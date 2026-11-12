@@ -19,6 +19,7 @@ Vigía es de un solo usuario: quien tiene el token puede todo. Lo que sí defien
 ## Límites conocidos
 
 - La defensa contra SSRF resuelve el nombre antes de conectar; un DNS que cambie de respuesta entre ambas consultas (rebinding) podría evadirla. Importa si expones Vigía a usuarios que no son tú.
+- El relevo es un punto público en internet que pide cualquier URL http(s) a quien presente su token. Trata `RELAY_TOKEN` como una contraseña y rótalo si se filtra.
 - Un agente ejecuta las peticiones que le manda el servidor al que se conecta. Conéctalo sólo a un servidor tuyo y por HTTPS.
 - El webhook se envía a la dirección que configures, incluidas redes privadas (es intencional, para servicios internos).
 - No hay límite de intentos de inicio de sesión más allá de una pausa por intento fallido: usa un token largo y aleatorio (`openssl rand -hex 24`).
