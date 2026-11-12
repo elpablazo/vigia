@@ -410,7 +410,9 @@ async function openSettings() {
     <section><h3>Agentes</h3>
       <div class="hint">Un agente es este mismo programa corriendo en otra red (tu casa, tu laptop). Cuando un sitio rechaza la IP del servidor, la página se pide desde el agente.</div>
       <div class="facts" style="margin-bottom:10px">${agents.length ? agents.map(a => `<span class="pill"><span class="dot on"></span>${esc(a.name)}</span>`).join('') : '<span class="pill"><span class="dot"></span>Ninguno conectado</span>'}</div>
-      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span>VIGIA_SERVER=${esc(o)} VIGIA_TOKEN=$VIGIA_TOKEN VIGIA_AGENT_NAME=casa vigia agent</span></pre>
+      <pre class="code"><button class="btn copy" data-copy>Copiar</button><span>docker run -d --restart unless-stopped --name vigia-agent \\
+  -e VIGIA_SERVER=${esc(o)} -e VIGIA_TOKEN=$VIGIA_TOKEN -e VIGIA_AGENT_NAME=casa \\
+  ghcr.io/elpablazo/vigia agent</span></pre>
     </section>
     <section><h3>API y MCP</h3>
       <div class="hint">Todo lo que hace esta pantalla está en la API. Autenticación: <code>Authorization: Bearer &lt;token&gt;</code>.</div>
